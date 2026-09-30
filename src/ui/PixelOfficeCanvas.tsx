@@ -16,6 +16,7 @@ export type CameraAgent = {
 type PixelOfficeCanvasProps = {
   agents: CameraAgent[];
   camera: "office" | "boardroomKitchen" | "overflowOffice";
+  assetBaseUrl: string;
 };
 
 function stableNumericId(id: string): number {
@@ -26,7 +27,7 @@ function stableNumericId(id: string): number {
   return Math.abs(hash) || 1;
 }
 
-export function PixelOfficeCanvas({ agents, camera }: PixelOfficeCanvasProps) {
+export function PixelOfficeCanvas({ agents, camera, assetBaseUrl }: PixelOfficeCanvasProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const wrapRef = useRef<HTMLDivElement>(null);
   const officeRef = useRef<OfficeState | null>(null);
@@ -41,7 +42,7 @@ export function PixelOfficeCanvas({ agents, camera }: PixelOfficeCanvasProps) {
   useEffect(() => {
     let cancelled = false;
 
-    void loadPixelAssets()
+    void loadPixelAssets(assetBaseUrl)
       .then(({ layouts, cameraBounds }) => {
         if (cancelled) return;
         const office = new OfficeState(layouts.combined);
@@ -57,7 +58,7 @@ export function PixelOfficeCanvas({ agents, camera }: PixelOfficeCanvasProps) {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [assetBaseUrl]);
 
   useEffect(() => {
     const office = officeRef.current;

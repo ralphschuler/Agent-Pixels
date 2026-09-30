@@ -65,19 +65,9 @@ Use the development version if you want to edit Agent Pixels or build it from so
 
 Prerequisites:
 
-- Node.js
+- Node.js 24.11.0 or newer
 - pnpm
 - Paperclip running
-- Paperclip source code cloned locally
-- Built Paperclip plugin SDK
-
-If you installed Paperclip from npm and do not have the Paperclip source code locally, use the release version instead. Building from source currently requires the Paperclip repo because the plugin SDK is not published separately.
-
-To be more specific, make sure you:
-
-```bash
-git clone https://github.com/paperclipai/paperclip
-```
 
 Clone and build Agent Pixels:
 
@@ -90,7 +80,7 @@ pnpm run build
 
 The build output is written to `dist/`.
 
-If your Paperclip source is somewhere else, set the SDK path when building. This path should point to the built Paperclip plugin SDK:
+The published plugin SDK is installed automatically. To test against a locally built SDK instead, set its path when building:
 
 ```bash
 PAPERCLIP_SDK_DIST=/path/to/paperclip/packages/plugins/sdk/dist pnpm run build
@@ -105,6 +95,25 @@ pnpm run package:release
 ```
 
 This requires the `zip` command-line tool. The ZIP is written to `release/`.
+
+### Package Registries
+
+`.github/workflows/publish-packages.yml` validates pull requests, builds an immutable package artifact on `main`, and promotes that artifact when a matching `v<package-version>` GitHub Release is published. Repository variables are independent and default to off:
+
+| Variable | Effect when set to `true` |
+| --- | --- |
+| `PUBLISH_GITHUB_PACKAGES` | Publishes `@<repository-owner>/agent-pixels` to GitHub Packages. |
+| `PUBLISH_NPM` | Publishes `NPM_PACKAGE_NAME` to npmjs. |
+
+Configure these under **Settings → Secrets and variables → Actions**. For npm, also set a lowercase `NPM_PACKAGE_NAME` that you own. Bootstrap the first publish with a granular `NPM_TOKEN` repository secret; afterward configure npm Trusted Publishing for `publish-packages.yml` and remove the secret. GitHub Packages uses `GITHUB_TOKEN` and needs no extra secret; set the package visibility after its first publish if it should be public.
+
+Before publishing, update both `package.json` and `PLUGIN_VERSION` in `src/manifest.ts`, then create the matching `v<version>` release.
+
+For fork testing, use a fork-owned test package name and a new prerelease version. Do not consume the canonical upstream package name or version.
+
+If `NPM_PACKAGE_NAME` changes, merge or push a new `main` commit before creating the release so the promoted artifact contains the new name.
+
+Create the GitHub Release only after the matching `main` run of **Publish packages** is green.
 
 ## Development
 
@@ -131,25 +140,15 @@ Example container path:
 /paperclip/plugins/agent-pixels
 ```
 
-Agent Pixels currently builds against the Paperclip plugin SDK from the Paperclip monorepo. Build `@paperclipai/shared` and `@paperclipai/plugin-sdk` from the Paperclip source first:
-
-```bash
-cd /path/to/paperclip/packages/shared
-npm install
-npx tsc --noEmitOnError false
-
-cd /path/to/paperclip/packages/plugins/sdk
-npm install
-npx tsc --noEmitOnError false
-```
-
-Then build Agent Pixels. If the plugin is not cloned under the Paperclip repo, set `PAPERCLIP_SDK_DIST`:
+Build Agent Pixels with its published plugin SDK dependency:
 
 ```bash
 cd /path/to/Agent-Pixels
-npm install
-PAPERCLIP_SDK_DIST=/path/to/paperclip/packages/plugins/sdk/dist npm run build
+pnpm install
+pnpm run build
 ```
+
+Set `PAPERCLIP_SDK_DIST=/path/to/paperclip/packages/plugins/sdk/dist` only when testing against a locally built SDK.
 
 In authenticated Paperclip deployments, create a CLI auth challenge and approve it as an instance admin:
 

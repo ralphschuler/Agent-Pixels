@@ -4,6 +4,13 @@
   "description": "Security camera style pixel office plugin for Paperclip",
   "type": "module",
   "private": true,
+  "packageManager": "pnpm@10.34.6",
+  "files": [
+    "dist"
+  ],
+  "engines": {
+    "node": ">=24.11.0"
+  },
   "paperclipPlugin": {
     "manifest": "./dist/manifest.js",
     "worker": "./dist/worker.js",
@@ -16,6 +23,7 @@
     "typecheck": "tsc --noEmit"
   },
   "devDependencies": {
+    "@paperclipai/plugin-sdk": "2026.916.1",
     "@types/node": "^24.6.0",
     "@types/react": "^19.0.8",
     "esbuild": "^0.27.3",

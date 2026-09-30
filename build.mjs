@@ -1,14 +1,20 @@
 #!/usr/bin/env node
 
 import { build } from "esbuild";
-import { existsSync } from "node:fs";
+import { existsSync, realpathSync } from "node:fs";
 import { cp, mkdir, readFile, readdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 const root = path.dirname(fileURLToPath(import.meta.url));
+const configuredSdkRoot = process.env.PAPERCLIP_SDK_DIST;
+if (configuredSdkRoot && !existsSync(path.join(configuredSdkRoot, "index.js"))) {
+  throw new Error(`PAPERCLIP_SDK_DIST does not contain index.js: ${configuredSdkRoot}`);
+}
+
 const paperclipSdkRoot = [
-  process.env.PAPERCLIP_SDK_DIST,
+  configuredSdkRoot,
+  path.resolve(root, "node_modules/@paperclipai/plugin-sdk/dist"),
   path.resolve(root, "../../packages/plugins/sdk/dist"),
   "/home/garratt/dev/4_repos/paperclip/packages/plugins/sdk/dist",
 ].find((candidate) => candidate && existsSync(path.join(candidate, "index.js")));
@@ -23,7 +29,7 @@ const paperclipSdkAlias = {
   name: "paperclip-sdk-alias",
   setup(build) {
     build.onResolve({ filter: /^@paperclipai\/plugin-sdk$/ }, () => ({
-      path: path.join(paperclipSdkRoot, "index.js"),
+      path: realpathSync(path.join(paperclipSdkRoot, "index.js")),
     }));
   },
 };

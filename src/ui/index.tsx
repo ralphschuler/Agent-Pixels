@@ -1,8 +1,15 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { useHostContext, usePluginData, type PluginSettingsPageProps, type PluginSidebarProps } from "@paperclipai/plugin-sdk/ui";
+import { useHostContext, usePluginData, type PluginPageProps, type PluginSettingsPageProps, type PluginSidebarProps } from "@paperclipai/plugin-sdk/ui";
 import { PAGE_ROUTE } from "../manifest.js";
 import { PixelOfficeCanvas } from "./PixelOfficeCanvas.js";
-import { getPluginAssetBaseUrl, type AssetIndex } from "./pixelAssets.js";
+import { fetchAssetIndex } from "./assetIndex.js";
+import { getPluginAssetBaseUrl } from "./pixelAssets.js";
+
+type PluginRuntimeSlotProps = {
+  slot?: {
+    pluginId?: string;
+  };
+};
 
 type CameraRoomData = {
   room: string;
@@ -151,9 +158,10 @@ export function AgentPixelsSidebarLink({ context }: PluginSidebarProps) {
   );
 }
 
-export function AgentPixelsCameraPage() {
+export function AgentPixelsCameraPage({ slot }: PluginPageProps & PluginRuntimeSlotProps) {
   const pageRef = useRef<HTMLElement>(null);
   const { companyId } = useHostContext();
+  const assetBaseUrl = getPluginAssetBaseUrl(slot?.pluginId);
   const { data, loading, error } = usePluginData<CameraRoomData>("camera-room", { companyId });
   const [assignments, setAssignments] = useState<Record<string, number>>(() => readStoredAssignments(companyId ?? null));
   const agents = useMemo(
@@ -239,10 +247,10 @@ export function AgentPixelsCameraPage() {
       </header>
 
       {view === "characters" ? (
-        <CharacterAssignmentsPanel companyId={companyId ?? null} assignments={assignments} onAssignmentsChange={setAssignments} />
+        <CharacterAssignmentsPanel assetBaseUrl={assetBaseUrl} companyId={companyId ?? null} assignments={assignments} onAssignmentsChange={setAssignments} />
       ) : (
         <section aria-label="Agent Pixels office camera" style={styles.camera}>
-          <PixelOfficeCanvas camera={camera} agents={agents.length ? agents : [{ id: "placeholder", name: "No agents yet", status: "waiting", activityKind: "idle" }]} />
+          <PixelOfficeCanvas assetBaseUrl={assetBaseUrl} camera={camera} agents={agents.length ? agents : [{ id: "placeholder", name: "No agents yet", status: "waiting", activityKind: "idle" }]} />
           <div style={styles.scanlines} />
         </section>
       )}
@@ -250,18 +258,13 @@ export function AgentPixelsCameraPage() {
   );
 }
 
-function useCharacterAssets() {
+function useCharacterAssets(baseUrl: string) {
   const [assets, setAssets] = useState<Array<{ index: number; path: string; url: string }>>([]);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
-    const baseUrl = getPluginAssetBaseUrl();
-    fetch(`${baseUrl}agent-pixels-assets.json`)
-      .then((res) => {
-        if (!res.ok) throw new Error(`Failed to fetch character index: ${res.status}`);
-        return res.json() as Promise<AssetIndex>;
-      })
+    fetchAssetIndex(baseUrl)
       .then((index) => {
         if (cancelled) return;
         setAssets(index.characters.map((path, index) => ({ index, path, url: `${baseUrl}${path}` })));
@@ -274,7 +277,7 @@ function useCharacterAssets() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [baseUrl]);
 
   return { assets, error };
 }
@@ -297,16 +300,18 @@ function SpritePreview({ url, scale = 2 }: { url: string; scale?: number }) {
 }
 
 function CharacterAssignmentsPanel({
+  assetBaseUrl,
   companyId,
   assignments,
   onAssignmentsChange,
 }: {
+  assetBaseUrl: string;
   companyId: string | null;
   assignments?: Record<string, number>;
   onAssignmentsChange?: (assignments: Record<string, number>) => void;
 }) {
   const { data, loading, error, refresh } = usePluginData<CharacterSettingsData>("character-settings", companyId ? { companyId } : {});
-  const { assets, error: assetError } = useCharacterAssets();
+  const { assets, error: assetError } = useCharacterAssets(assetBaseUrl);
   const [savingAgentId, setSavingAgentId] = useState<string | null>(null);
   const [storedAssignments, setStoredAssignments] = useState<Record<string, number>>(() => assignments ?? readStoredAssignments(companyId));
   const [selectedAgentId, setSelectedAgentId] = useState<string | null>(null);
@@ -485,10 +490,11 @@ function CharacterAssignmentsPanel({
   );
 }
 
-export function AgentPixelsSettingsPage({ context }: PluginSettingsPageProps) {
+export function AgentPixelsSettingsPage({ context, slot }: PluginSettingsPageProps & PluginRuntimeSlotProps) {
+  const assetBaseUrl = getPluginAssetBaseUrl(slot?.pluginId);
   return (
     <main style={{ padding: 24 }}>
-      <CharacterAssignmentsPanel companyId={context.companyId ?? null} />
+      <CharacterAssignmentsPanel assetBaseUrl={assetBaseUrl} companyId={context.companyId ?? null} />
     </main>
   );
 }

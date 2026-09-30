@@ -3,43 +3,12 @@ import { buildDynamicCatalog } from "../office/layout/furnitureCatalog.js";
 import { setCharacterTemplates } from "../office/sprites/spriteData.js";
 import type { OfficeLayout, SpriteData, TileType } from "../office/types.js";
 import { setWallSprites } from "../office/wallTiles.js";
+import { fetchAssetIndex, resolvePluginAssetBaseUrl, type AssetIndex } from "./assetIndex.js";
 
 type CharacterDirectionSprites = {
   down: SpriteData[];
   up: SpriteData[];
   right: SpriteData[];
-};
-
-export type AssetIndex = {
-  characters: string[];
-  floors: string[];
-  walls: string[];
-  furniture: Array<{
-    id: string;
-    label: string;
-    category: string;
-    width: number;
-    height: number;
-    footprintW: number;
-    footprintH: number;
-    isDesk: boolean;
-    groupId?: string;
-    orientation?: string;
-    state?: string;
-    rotationScheme?: string;
-    animationGroup?: string;
-    frame?: number;
-    canPlaceOnSurfaces?: boolean;
-    backgroundTiles?: number;
-    canPlaceOnWalls?: boolean;
-    mirrorSide?: boolean;
-    furniturePath: string;
-  }>;
-  layouts?: {
-    office: string;
-    boardroomKitchen: string;
-  };
-  defaultLayout: string;
 };
 
 type DecodedPng = {
@@ -77,7 +46,7 @@ const WALL_PIECE_HEIGHT = 32;
 const WALL_GRID_COLS = 4;
 const WALL_BITMASK_COUNT = 16;
 
-let loadPromise: Promise<LoadedPixelAssets> | null = null;
+const loadPromises = new Map<string, Promise<LoadedPixelAssets>>();
 
 function trimLayoutToVisibleRoom(layout: OfficeLayout): OfficeLayout {
   const occupied: Array<{ col: number; row: number }> = [];
@@ -248,16 +217,8 @@ function recolorLayout(layout: OfficeLayout, floorColor: NonNullable<OfficeLayou
   };
 }
 
-export function getPluginAssetBaseUrl(): string {
-  const metaUrl = import.meta.url;
-  if (metaUrl && !metaUrl.startsWith("blob:")) {
-    return new URL("./assets/", metaUrl).toString();
-  }
-
-  const pluginMatch = window.location.pathname.match(/\/_plugins\/[^/]+\/ui\//);
-  if (pluginMatch) return `${pluginMatch[0]}assets/`;
-
-  return "/_plugins/agent-pixels.camera/ui/assets/";
+export function getPluginAssetBaseUrl(pluginId?: string): string {
+  return resolvePluginAssetBaseUrl(import.meta.url, window.location.pathname, pluginId);
 }
 
 function rgbaToHex(r: number, g: number, b: number, a: number): string {
@@ -337,11 +298,12 @@ async function decodeFurniture(baseUrl: string, index: AssetIndex): Promise<Reco
   return Object.fromEntries(entries);
 }
 
-export function loadPixelAssets(): Promise<LoadedPixelAssets> {
-  loadPromise ??= (async () => {
-    const baseUrl = getPluginAssetBaseUrl();
-    const indexUrl = `${baseUrl}agent-pixels-assets.json`;
-    const index = (await fetch(indexUrl).then((res) => res.json())) as AssetIndex;
+export function loadPixelAssets(baseUrl: string): Promise<LoadedPixelAssets> {
+  let loadPromise = loadPromises.get(baseUrl);
+  if (loadPromise) return loadPromise;
+
+  loadPromise = (async () => {
+    const index = await fetchAssetIndex(baseUrl);
 
     const layoutPaths = index.layouts ?? {
       office: index.defaultLayout,
@@ -377,6 +339,8 @@ export function loadPixelAssets(): Promise<LoadedPixelAssets> {
       cameraBounds: combined.cameraBounds,
     };
   })();
+
+  loadPromises.set(baseUrl, loadPromise);
 
   return loadPromise;
 }
